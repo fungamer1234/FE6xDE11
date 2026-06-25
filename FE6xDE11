@@ -1,0 +1,1163 @@
+local HUB_NAME      = "Elite x De11"
+local WINDOW_TITLE  = "💀 Elite x De11"
+local CHAT_NAME     = "FE6 x DE11"
+local CREDIT_TEXT   = "by H4VK"
+local LOAD_POPUP    = "FE6 x DE11 is godly!"
+local BLOODY_URL    = "https://raw.githubusercontent.com/celestialteam/youhateme/refs/heads/main/BloodyPremiumCrack.lua"
+local CLOWN_IMG     = "126398109685987"
+local CLOWN_SND     = "9085027122"
+
+local THEME = {
+    bg     = Color3.fromRGB(10, 6, 22),
+    panel  = Color3.fromRGB(20, 12, 42),
+    card   = Color3.fromRGB(30, 18, 58),
+    accent = Color3.fromRGB(98, 56, 198),
+    accentLight = Color3.fromRGB(130, 90, 220),
+    accentSoft  = Color3.fromRGB(72, 44, 148),
+}
+
+local registeredHubGuis = {}
+local registeredInventoryGuis = {}
+
+local FTAP_PLACE_ID = 6961824067
+
+local OUR_OVERLAY_NAMES = {
+    FE6_SkyOverlay = true,
+    FE6_EliteSplash = true,
+    FE6_ClownReplace = true,
+}
+
+local INVENTORY_NAME_HINTS = {
+    "inventory", "backpack", "hotbar", "toolbar", "itembar", "equip", "items", "toys", "loadout", "gear",
+}
+
+local CHAT_GUI_NAMES = {
+    Chat = true, BubbleChat = true, PlayerList = true, TouchGui = true, Health = true,
+    EmotesMenu = true, TopBar = true, NotificationGui = true,
+}
+
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local UserInputService  = game:GetService("UserInputService")
+
+
+local Lighting          = game:GetService("Lighting")
+local StarterGui        = game:GetService("StarterGui")
+local VirtualUser       = game:GetService("VirtualUser")
+local HttpService       = game:GetService("HttpService")
+local TweenService      = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
+
+local hubLoaded         = false
+local splashActive      = true
+local purpleSkyOn       = false
+local inventoryPurpleOn = false
+local clownBlocked      = false
+local savedLighting     = {}
+local skyOverlay        = nil
+local eliteSplashGui    = nil
+local sweepToken        = 0
+local inventoryToken    = 0
+local devilArtifacts    = {}
+
+local TAB_WHITELIST = {
+    ["Player"] = true, ["Fling"] = true, ["Misc"] = true, ["Visuals"] = true,
+    ["Settings"] = true, ["Combat"] = true, ["Movement"] = true, ["Fun"] = true,
+    ["Main"] = true, ["World"] = true, ["Teleport"] = true, ["Troll"] = true,
+    ["UI"] = true, ["Configs"] = true, ["Credits"] = true, ["Keybinds"] = true,
+    ["Search"] = true, ["Home"] = true, ["Exploits"] = true, ["Anti"] = true,
+}
+
+local COLOR_PROPS = {
+    BackgroundColor3 = true, BorderColor3 = true, ImageColor3 = true,
+    TextColor3 = true, PlaceholderColor3 = true, ScrollBarImageColor3 = true,
+}
+
+local function isClownAsset(val)
+    if type(val) ~= "string" then return false end
+    return val:find(CLOWN_IMG, 1, true) ~= nil or val:find(CLOWN_SND, 1, true) ~= nil
+end
+
+local function shouldRebrandText(str)
+    if type(str) ~= "string" then return false end
+    if TAB_WHITELIST[str] then return false end
+    local lower = str:lower()
+    if lower:find("bloody", 1, true) then return true end
+    if lower:find("tokra", 1, true) then return true end
+    if lower:find("made by", 1, true) and lower:find("bloody", 1, true) then return true end
+    if (lower:find("premium", 1, true) or lower:find("crack", 1, true)) and #str > 8 then return true end
+    if lower:find("destroyer", 1, true) and lower:find("bloody", 1, true) then return true end
+    return false
+end
+
+local function rebrandText(str)
+    if type(str) ~= "string" then return str end
+    if TAB_WHITELIST[str] then return str end
+    if not shouldRebrandText(str) then return str end
+
+    local out = str
+    out = out:gsub("[Mm]ade%s+[Bb]y%s+[Bb]loody[%s%p]*", CREDIT_TEXT)
+    out = out:gsub("[Bb]y%s+[Bb]loody[%s%p]*", CREDIT_TEXT)
+    out = out:gsub("[Bb]loody%s*[%-%s]*[Pp]remium%s*[%-%s]*[Cc]rack[%s%p]*", HUB_NAME)
+    out = out:gsub("[Bb]loody%s*[%-%s]*[Pp]remium[%s%p]*", HUB_NAME)
+    out = out:gsub("[Bb]loody%s*[%-%s]*[Hh]ub[%s%p]*", HUB_NAME)
+    out = out:gsub("[Bb]loody[%s%p]*", HUB_NAME)
+    out = out:gsub("[Tt]okra[%s%p]*", CHAT_NAME)
+
+    if out:find("[Pp]remium", 1) or out:find("[Cc]rack", 1) then
+        if not TAB_WHITELIST[out] then
+            out = out:gsub("[%s%-%[%]%(%)]*[Pp]remium[%s%p]*", " ")
+            out = out:gsub("[%s%-%[%]%(%)]*[Cc]rack[%s%p]*", " ")
+            out = out:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+        end
+    end
+
+    if out:lower():find("bloody", 1, true) or out:lower():find("premium", 1, true) or out:lower():find("tokra", 1, true) then
+        if out:find("💀") or #out > 14 then
+            out = WINDOW_TITLE
+        else
+            out = HUB_NAME
+        end
+    end
+
+    if out:lower():find("made by", 1, true) or out:lower():find("by bloody", 1, true) then
+        out = CREDIT_TEXT
+    end
+
+    return out
+end
+
+local function remapColor(color)
+    if typeof(color) ~= "Color3" then return color end
+    local r = math.floor(color.R * 255 + 0.5)
+    local g = math.floor(color.G * 255 + 0.5)
+    local b = math.floor(color.B * 255 + 0.5)
+
+    if r > g + 8 and r > b + 8 and r > 80 then
+        return THEME.accent
+    end
+    if r > 90 and g < 50 and b < 70 and r > g + 40 then
+        return THEME.accent
+    end
+    if r >= 140 and g <= 90 and b <= 90 and r > g + 25 then
+        return THEME.accent
+    end
+    if r >= 200 and g <= 120 and b <= 120 then
+        return THEME.accentLight
+    end
+    if r <= 25 and g <= 25 and b <= 30 then
+        return THEME.bg
+    end
+    if r <= 45 and g <= 35 and b <= 55 and r > 15 then
+        return THEME.panel
+    end
+    if r <= 65 and g <= 50 and b <= 80 then
+        return THEME.card
+    end
+    if r == 0 and g == 255 and b == 255 then
+        return THEME.accent
+    end
+    if r == 255 and g == 255 and b == 255 then
+        return color
+    end
+    if r < 15 and g < 10 and b < 20 then
+        return THEME.bg
+    end
+
+    return color
+end
+
+local function shouldPatchHttpUrl(url)
+    if type(url) ~= "string" then return false end
+    local lower = url:lower()
+    if lower:find("bloody", 1, true) or lower:find("youhateme", 1, true) then return false end
+    if lower:find(".luau", 1, true) or lower:find(".lua", 1, true) then
+        if not lower:find("rayfield", 1, true) and not lower:find("sirius", 1, true) then
+            return false
+        end
+    end
+    return lower:find("rayfield", 1, true) ~= nil
+        or lower:find("sirius.menu", 1, true) ~= nil
+end
+
+local function patchRayfieldSource(src)
+    if type(src) ~= "string" then return src end
+    if #src > 200000 then return src end
+    local lower = src:lower()
+    if not (lower:find("rayfield", 1, true) and lower:find("createwindow", 1, true)) then
+        return src
+    end
+
+    local reps = {
+        ["Color3.fromRGB(0, 255, 255)"]   = "Color3.fromRGB(98, 56, 198)",
+        ["Color3.fromRGB(0, 255, 255.0)"] = "Color3.fromRGB(98, 56, 198)",
+        ["Color3.fromRGB(25, 25, 25)"]    = "Color3.fromRGB(10, 6, 22)",
+        ["Color3.fromRGB(20, 20, 20)"]    = "Color3.fromRGB(10, 6, 22)",
+        ["Color3.fromRGB(30, 30, 30)"]    = "Color3.fromRGB(20, 12, 42)",
+        ["Color3.fromRGB(35, 35, 35)"]    = "Color3.fromRGB(20, 12, 42)",
+        ["Color3.fromRGB(40, 40, 40)"]    = "Color3.fromRGB(30, 18, 58)",
+        ["Color3.fromRGB(45, 45, 45)"]    = "Color3.fromRGB(30, 18, 58)",
+        ["Color3.fromRGB(255, 0, 0)"]     = "Color3.fromRGB(98, 56, 198)",
+        ["Color3.fromRGB(200, 0, 0)"]     = "Color3.fromRGB(98, 56, 198)",
+        ["Color3.fromRGB(180, 0, 0)"]     = "Color3.fromRGB(98, 56, 198)",
+        ["Color3.fromRGB(150, 0, 0)"]     = "Color3.fromRGB(98, 56, 198)",
+        ["Color3.fromRGB(255, 50, 50)"]   = "Color3.fromRGB(98, 56, 198)",
+        ["Color3.fromRGB(255, 70, 70)"]   = "Color3.fromRGB(130, 90, 220)",
+        ["ToggleEnabled = Color3.fromRGB(255, 0, 0)"] = "ToggleEnabled = Color3.fromRGB(98, 56, 198)",
+        ["TabBackgroundSelected = Color3.fromRGB(255, 0, 0)"] = "TabBackgroundSelected = Color3.fromRGB(98, 56, 198)",
+        ["SliderProgress = Color3.fromRGB(255, 0, 0)"] = "SliderProgress = Color3.fromRGB(98, 56, 198)",
+        ["Accent = Color3"]               = "Accent = Color3",
+        ['"Bloody"']                      = '"' .. HUB_NAME .. '"',
+        ["'Bloody'"]                      = "'" .. HUB_NAME .. "'",
+        ["Bloody Hub"]                    = HUB_NAME,
+        ["Bloody Premium"]                = HUB_NAME,
+    }
+
+    for old, new in pairs(reps) do
+        src = src:gsub(old, new)
+    end
+
+    src = src:gsub('Title%s*=%s*"(.-)"', function(t)
+        if t:lower():find("bloody", 1, true) or t:lower():find("premium", 1, true) then
+            return 'Title = "' .. WINDOW_TITLE .. '"'
+        end
+        return 'Title = "' .. t .. '"'
+    end)
+
+    return src
+end
+
+local function isOurOverlay(inst)
+    if not inst or not inst:IsA("GuiObject") then return false end
+    local p = inst
+    while p do
+        if p:IsA("ScreenGui") and OUR_OVERLAY_NAMES[p.Name] then
+            return true
+        end
+        p = p.Parent
+    end
+    return false
+end
+
+local function isChatOrSystemGui(gui)
+    if not gui or not gui:IsA("ScreenGui") then return false end
+    return CHAT_GUI_NAMES[gui.Name] == true
+end
+
+local function nameHintsInventory(name)
+    local n = name:lower()
+    for _, hint in ipairs(INVENTORY_NAME_HINTS) do
+        if n:find(hint, 1, true) then return true end
+    end
+    return false
+end
+
+local function guiHasHubTabs(gui)
+    for _, d in ipairs(gui:GetDescendants()) do
+        if (d:IsA("TextButton") or d:IsA("TextLabel")) and TAB_WHITELIST[d.Text] then
+            return true
+        end
+    end
+    return false
+end
+
+local function registerHubGui(gui)
+    if not gui or not gui:IsA("ScreenGui") or isOurOverlay(gui) then return end
+    if nameHintsInventory(gui.Name) then return end
+    local n = gui.Name:lower()
+    if n:find("rayfield", 1, true) or n:find("bloody", 1, true) or guiHasHubTabs(gui) then
+        registeredHubGuis[gui] = true
+    end
+end
+
+local function isHubGui(inst)
+    if not inst or not inst:IsA("GuiObject") or isOurOverlay(inst) then return false end
+    local n = inst.Name:lower()
+    if n:find("rayfield", 1, true) or n:find("bloody", 1, true) then return true end
+    local p = inst.Parent
+    while p do
+        if p:IsA("ScreenGui") then
+            if registeredHubGuis[p] then return true end
+            registerHubGui(p)
+            return registeredHubGuis[p] == true
+        end
+        p = p.Parent
+    end
+    return false
+end
+
+local function isInventoryGui(gui)
+    if not gui or not gui:IsA("ScreenGui") then return false end
+    if isOurOverlay(gui) or isChatOrSystemGui(gui) or registeredHubGuis[gui] then return false end
+    local n = gui.Name:lower()
+    if n:find("rayfield", 1, true) or n:find("bloody", 1, true) then return false end
+    if guiHasHubTabs(gui) then return false end
+    return nameHintsInventory(gui.Name)
+end
+
+local function registerInventoryGui(gui)
+    if isInventoryGui(gui) then
+        registeredInventoryGuis[gui] = true
+        return true
+    end
+    return false
+end
+
+local function isInventoryElement(inst)
+    if not inventoryPurpleOn or not inst or not inst:IsA("GuiObject") or isOurOverlay(inst) then
+        return false
+    end
+    local p = inst.Parent
+    while p do
+        if p:IsA("ScreenGui") then
+            if registeredInventoryGuis[p] then return true end
+            if registerInventoryGui(p) then return true end
+            return false
+        end
+        p = p.Parent
+    end
+    return false
+end
+
+local RAYFIELD_PURPLE = {
+    TextColor = Color3.fromRGB(240, 240, 245),
+    Background = Color3.fromRGB(10, 6, 22),
+    Topbar = Color3.fromRGB(20, 12, 42),
+    TabBackground = Color3.fromRGB(30, 18, 58),
+    TabBackgroundSelected = Color3.fromRGB(98, 56, 198),
+    TabTextColor = Color3.fromRGB(220, 215, 235),
+    SelectedTabTextColor = Color3.fromRGB(255, 255, 255),
+    ElementBackground = Color3.fromRGB(20, 12, 42),
+    ToggleEnabled = Color3.fromRGB(98, 56, 198),
+    SliderProgress = Color3.fromRGB(98, 56, 198),
+    SliderBackground = Color3.fromRGB(72, 44, 148),
+}
+
+local function hijackRayfieldTheme()
+    pcall(function()
+        if not getgenv then return end
+        for _, key in ipairs({ "Rayfield", "RayfieldLibrary", "Library" }) do
+            local lib = getgenv()[key]
+            if type(lib) == "table" and type(lib.Theme) == "table" then
+                for _, themeTable in pairs(lib.Theme) do
+                    if type(themeTable) == "table" then
+                        for k, v in pairs(RAYFIELD_PURPLE) do
+                            themeTable[k] = v
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function paintGuiObject(inst, inventoryMode)
+    pcall(function()
+        if inst:IsA("GuiObject") then
+            inst.BackgroundColor3 = remapColor(inst.BackgroundColor3)
+            inst.BorderColor3 = remapColor(inst.BorderColor3)
+            if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+                inst.TextColor3 = inventoryMode and Color3.fromRGB(245, 240, 255) or remapColor(inst.TextColor3)
+            end
+            if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
+                inst.ImageColor3 = inventoryMode and THEME.accentLight or remapColor(inst.ImageColor3)
+            end
+        end
+        if inst:IsA("UIStroke") then
+            inst.Color = inventoryMode and THEME.accentLight or remapColor(inst.Color)
+        end
+        if inst:IsA("UIGradient") then
+            inst.Color = remapColor(inst.Color)
+        end
+    end)
+end
+
+local function paintHubGui(gui)
+    if not gui or not gui.Parent then return end
+    for _, inst in ipairs(gui:GetDescendants()) do
+        paintGuiObject(inst, false)
+    end
+end
+
+local function paintInventoryGui(gui)
+    if not gui or not gui.Parent then return end
+    for _, inst in ipairs(gui:GetDescendants()) do
+        paintGuiObject(inst, true)
+    end
+end
+
+local function sweepHubTheme()
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        registerHubGui(gui)
+    end
+    for gui, _ in pairs(registeredHubGuis) do
+        if gui.Parent then
+            paintHubGui(gui)
+        else
+            registeredHubGuis[gui] = nil
+        end
+    end
+    hijackRayfieldTheme()
+end
+
+local function refreshInventoryPurple()
+    if not inventoryPurpleOn then return end
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if registerInventoryGui(gui) then
+            paintInventoryGui(gui)
+        end
+    end
+end
+
+local function scheduleSweep(delay)
+    sweepToken = sweepToken + 1
+    local token = sweepToken
+    task.delay(delay or 0.25, function()
+        if token ~= sweepToken then return end
+        sweepHubTheme()
+    end)
+end
+
+local function scheduleInventoryRefresh(delay)
+    inventoryToken = inventoryToken + 1
+    local token = inventoryToken
+    task.delay(delay or 0.35, function()
+        if token ~= inventoryToken or not inventoryPurpleOn then return end
+        refreshInventoryPurple()
+    end)
+end
+
+local function runInitialHubPasses()
+    task.spawn(function()
+        for i = 1, 3 do
+            sweepHubTheme()
+            ensureHubVisible()
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function ensureHubVisible()
+    pcall(function()
+        for _, gui in ipairs(PlayerGui:GetChildren()) do
+            registerHubGui(gui)
+            if registeredHubGuis[gui] then
+                gui.Enabled = true
+                local main = gui:FindFirstChild("Main", true) or gui:FindFirstChild("MainFrame", true)
+                if main and main:IsA("GuiObject") then
+                    main.Visible = true
+                end
+            end
+        end
+    end)
+end
+
+local function showBriefEliteSplash()
+    if clownBlocked then return end
+    clownBlocked = true
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FE6_ClownReplace"
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 99998
+    gui.IgnoreGuiInset = true
+    gui.Parent = PlayerGui
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = THEME.bg
+    frame.BackgroundTransparency = 0.15
+    frame.BorderSizePixel = 0
+    frame.Parent = gui
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 500, 0, 80)
+    label.Position = UDim2.new(0.5, -250, 0.5, -40)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 36
+    label.TextColor3 = THEME.accent
+    label.Text = WINDOW_TITLE
+    label.Parent = frame
+
+    task.delay(1.2, function()
+        if gui and gui.Parent then
+            gui:Destroy()
+        end
+        clownBlocked = false
+    end)
+end
+
+local cleanupDevilArtifacts
+
+local function createEliteSplash()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FE6_EliteSplash"
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 99999
+    gui.IgnoreGuiInset = true
+    gui.Parent = PlayerGui
+    eliteSplashGui = gui
+
+    local bg = Instance.new("Frame")
+    bg.Name = "FE6_SplashBG"
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = THEME.bg
+    bg.BorderSizePixel = 0
+    bg.Parent = gui
+
+    local glow = Instance.new("Frame")
+    glow.Name = "FE6_SplashGlow"
+    glow.Size = UDim2.new(0, 420, 0, 420)
+    glow.Position = UDim2.new(0.5, -210, 0.5, -210)
+    glow.BackgroundColor3 = THEME.accent
+    glow.BackgroundTransparency = 0.82
+    glow.BorderSizePixel = 0
+    glow.Parent = gui
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = glow
+
+    local skull = Instance.new("TextLabel")
+    skull.Name = "FE6_SkullEmoji"
+    skull.Size = UDim2.new(0, 160, 0, 160)
+    skull.Position = UDim2.new(0.5, -80, 0.42, -90)
+    skull.BackgroundTransparency = 1
+    skull.Font = Enum.Font.GothamBold
+    skull.TextSize = 100
+    skull.Text = "💀"
+    skull.TextColor3 = THEME.accentLight
+    skull.Parent = gui
+
+    local title = Instance.new("TextLabel")
+    title.Name = "FE6_SplashTitle"
+    title.Size = UDim2.new(0, 600, 0, 60)
+    title.Position = UDim2.new(0.5, -300, 0.58, 0)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 42
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextTransparency = 1
+    title.Text = HUB_NAME
+    title.Parent = gui
+
+    local credit = Instance.new("TextLabel")
+    credit.Name = "FE6_SplashCredit"
+    credit.Size = UDim2.new(0, 400, 0, 30)
+    credit.Position = UDim2.new(0.5, -200, 0.65, 0)
+    credit.BackgroundTransparency = 1
+    credit.Font = Enum.Font.Gotham
+    credit.TextSize = 18
+    credit.TextColor3 = THEME.accent
+    credit.TextTransparency = 1
+    credit.Text = CREDIT_TEXT
+    credit.Parent = gui
+
+    local barBg = Instance.new("Frame")
+    barBg.Size = UDim2.new(0, 300, 0, 6)
+    barBg.Position = UDim2.new(0.5, -150, 0.72, 0)
+    barBg.BackgroundColor3 = THEME.panel
+    barBg.BorderSizePixel = 0
+    barBg.Parent = gui
+    local barCorner = Instance.new("UICorner")
+    barCorner.CornerRadius = UDim.new(1, 0)
+    barCorner.Parent = barBg
+
+    local barFill = Instance.new("Frame")
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = THEME.accent
+    barFill.BorderSizePixel = 0
+    barFill.Parent = barBg
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = barFill
+
+    TweenService:Create(barFill, TweenInfo.new(2.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(1, 0, 1, 0)
+    }):Play()
+
+    task.delay(0.4, function()
+        if not gui.Parent then return end
+        TweenService:Create(skull, TweenInfo.new(0.8, Enum.EasingStyle.Quad), {
+            TextSize = 108,
+        }):Play()
+        TweenService:Create(title, TweenInfo.new(0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0,
+        }):Play()
+        TweenService:Create(credit, TweenInfo.new(0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0.15,
+        }):Play()
+    end)
+
+    task.delay(1.7, function()
+        if not gui.Parent then return end
+        TweenService:Create(bg, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+            BackgroundTransparency = 1,
+        }):Play()
+        TweenService:Create(glow, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+            BackgroundTransparency = 1,
+        }):Play()
+        TweenService:Create(skull, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+            TextTransparency = 1,
+        }):Play()
+        TweenService:Create(title, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+            TextTransparency = 1,
+        }):Play()
+        TweenService:Create(credit, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+            TextTransparency = 1,
+        }):Play()
+    end)
+
+    task.delay(2.05, function()
+        cleanupDevilArtifacts()
+    end)
+
+    return gui
+end
+
+cleanupDevilArtifacts = function()
+    splashActive = false
+    devilArtifacts = {}
+    pcall(function()
+        if eliteSplashGui and eliteSplashGui.Parent then
+            eliteSplashGui:Destroy()
+        end
+        for _, child in ipairs(PlayerGui:GetChildren()) do
+            if child.Name == "FE6_EliteSplash" or child.Name == "FE6_ClownReplace" then
+                child:Destroy()
+            end
+        end
+    end)
+    eliteSplashGui = nil
+end
+
+local function saveLightingState()
+    savedLighting = {
+        Ambient          = Lighting.Ambient,
+        OutdoorAmbient   = Lighting.OutdoorAmbient,
+        ColorShift_Top   = Lighting.ColorShift_Top,
+        ColorShift_Bottom = Lighting.ColorShift_Bottom,
+        Brightness       = Lighting.Brightness,
+        ClockTime        = Lighting.ClockTime,
+        FogColor         = Lighting.FogColor,
+        FogEnd           = Lighting.FogEnd,
+        FogStart         = Lighting.FogStart,
+    }
+end
+
+local function restoreLightingState()
+    for k, v in pairs(savedLighting) do
+        pcall(function() Lighting[k] = v end)
+    end
+end
+
+local function cleanupWorldEffects()
+    purpleSkyOn = false
+    local sky = Lighting:FindFirstChild("FE6_PurpleSky")
+    if sky then sky:Destroy() end
+    local atmo = Lighting:FindFirstChild("FE6_PurpleAtmo")
+    if atmo then atmo:Destroy() end
+    if savedLighting.Ambient then
+        restoreLightingState()
+        savedLighting = {}
+    end
+end
+
+local function setPurpleSky(enabled)
+    purpleSkyOn = enabled
+    if enabled then
+        if not savedLighting.Ambient then saveLightingState() end
+        Lighting.Ambient           = Color3.fromRGB(45, 22, 90)
+        Lighting.OutdoorAmbient    = Color3.fromRGB(55, 28, 110)
+        Lighting.ColorShift_Top    = THEME.accent
+        Lighting.ColorShift_Bottom = THEME.card
+        Lighting.Brightness        = 2.5
+        Lighting.FogColor          = Color3.fromRGB(118, 98, 152)
+        Lighting.FogEnd            = 340
+        Lighting.FogStart          = 25
+        Lighting.Brightness        = 1.55
+
+        local oldSky = Lighting:FindFirstChild("FE6_PurpleSky")
+        if oldSky then oldSky:Destroy() end
+
+        local atmo = Lighting:FindFirstChild("FE6_PurpleAtmo")
+        if not atmo then
+            atmo = Instance.new("Atmosphere")
+            atmo.Name = "FE6_PurpleAtmo"
+            atmo.Density = 0.34
+            atmo.Offset = 0.15
+            atmo.Color = Color3.fromRGB(158, 132, 198)
+            atmo.Decay = Color3.fromRGB(92, 72, 128)
+            atmo.Glare = 0.07
+            atmo.Haze = 1.45
+            atmo.Parent = Lighting
+        end
+    else
+        restoreLightingState()
+        local sky = Lighting:FindFirstChild("FE6_PurpleSky")
+        if sky then sky:Destroy() end
+        local atmo = Lighting:FindFirstChild("FE6_PurpleAtmo")
+        if atmo then atmo:Destroy() end
+    end
+
+    if skyOverlay then
+        local btn = skyOverlay:FindFirstChild("ToggleBtn", true)
+        if btn and btn:IsA("TextButton") then
+            btn.Text = purpleSkyOn and "💜 Sky: ON" or "💜 Sky: OFF"
+            btn.BackgroundColor3 = purpleSkyOn and THEME.accent or THEME.panel
+        end
+    end
+end
+
+local function restoreDefaultMouse()
+    pcall(function()
+        local stale = PlayerGui:FindFirstChild("FE6_Cursor")
+        if stale then stale:Destroy() end
+        UserInputService.MouseIconEnabled = true
+        if Enum.OverrideMouseIconBehavior then
+            UserInputService.OverrideMouseIconBehavior = Enum.OverrideMouseIconBehavior.None
+        end
+        local mouse = LocalPlayer:GetMouse()
+        if mouse then
+            mouse.Icon = ""
+        end
+    end)
+end
+
+local function createSkyOverlay()
+    if skyOverlay and skyOverlay.Parent then return end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FE6_SkyOverlay"
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 50
+    gui.Parent = PlayerGui
+    skyOverlay = gui
+
+    local btn = Instance.new("TextButton")
+    btn.Name = "ToggleBtn"
+    btn.Size = UDim2.new(0, 130, 0, 36)
+    btn.Position = UDim2.new(0, 12, 1, -48)
+    btn.BackgroundColor3 = THEME.panel
+    btn.BorderSizePixel = 0
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = "💜 Sky: OFF"
+    btn.AutoButtonColor = true
+    btn.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = THEME.accent
+    stroke.Thickness = 1.5
+    stroke.Transparency = 0.4
+    stroke.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        setPurpleSky(not purpleSkyOn)
+    end)
+end
+
+local function findMainHubGui()
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and not OUR_OVERLAY_NAMES[gui.Name] then
+            local n = gui.Name:lower()
+            if n:find("rayfield", 1, true) or n:find("bloody", 1, true) or n:find("main", 1, true) then
+                return gui
+            end
+            for _, child in ipairs(gui:GetDescendants()) do
+                if child:IsA("TextLabel") or child:IsA("TextButton") then
+                    local t = child.Text
+                    if t and (t:lower():find("bloody", 1, true) or t == HUB_NAME or t == WINDOW_TITLE) then
+                        return gui
+                    end
+                end
+            end
+        end
+    end
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Enabled and not OUR_OVERLAY_NAMES[gui.Name] then
+            if gui:FindFirstChildWhichIsA("Frame", true) then
+                return gui
+            end
+        end
+    end
+    return nil
+end
+
+local function toggleHubMenu()
+    local hub = findMainHubGui()
+    if hub then
+        hub.Enabled = not hub.Enabled
+        return true
+    end
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and not OUR_OVERLAY_NAMES[gui.Name] then
+            local main = gui:FindFirstChild("Main", true) or gui:FindFirstChild("MainFrame", true)
+            if main and main:IsA("GuiObject") then
+                main.Visible = not main.Visible
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function installNotifyHook()
+    if not hookfunction then return end
+    local oldSetCore
+    local ok = pcall(function()
+        oldSetCore = hookfunction(StarterGui.SetCore, function(self, coreType, data)
+            if coreType == "SendNotification" and type(data) == "table" then
+                local title = tostring(data.Title or "")
+                local text  = tostring(data.Text or "")
+                local body    = (title .. " " .. text):lower()
+                if body:find("bloody", 1, true) or body:find("tokra", 1, true)
+                    or body:find("premium", 1, true) or body:find("loaded", 1, true)
+                    or body:find("load", 1, true) or body:find("crack", 1, true) then
+                    data.Title = CHAT_NAME
+                    data.Text  = LOAD_POPUP
+                end
+            end
+            return oldSetCore(self, coreType, data)
+        end)
+    end)
+    if not ok then
+        warn("[FE6 x DE11] SetCore hook unavailable")
+    end
+end
+
+local function installRuntimeHooks()
+    if not hookmetamethod then return end
+
+    local oldNewIndex
+    oldNewIndex = hookmetamethod(game, "__newindex", function(self, key, value)
+        if typeof(self) == "Instance" then
+            if key == "Image" and isClownAsset(tostring(value)) then
+                showBriefEliteSplash()
+                return oldNewIndex(self, key, "rbxassetid://0")
+            end
+            if key == "SoundId" and isClownAsset(tostring(value)) then
+                showBriefEliteSplash()
+                return oldNewIndex(self, key, "")
+            end
+            if key == "Text" and type(value) == "string" then
+                if isClownAsset(value) or value == "🤡" or value:find("clown", 1, true) then
+                    showBriefEliteSplash()
+                    return oldNewIndex(self, key, "💀")
+                end
+                if isHubGui(self) and shouldRebrandText(value) then
+                    value = rebrandText(value)
+                end
+            end
+            if COLOR_PROPS[key] and typeof(value) == "Color3" and isHubGui(self) and not isOurOverlay(self) then
+                value = remapColor(value)
+            end
+        end
+        return oldNewIndex(self, key, value)
+    end)
+
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+
+        if method == "HttpGet" or method == "HttpGetAsync" then
+            local url = args[1]
+            local result = oldNamecall(self, ...)
+            if type(result) == "string" and shouldPatchHttpUrl(url) then
+                result = patchRayfieldSource(result)
+            end
+            return result
+        end
+
+        if method == "SetCore" and self == StarterGui then
+            local coreType = args[1]
+            local data = args[2]
+            if coreType == "SendNotification" and type(data) == "table" then
+                local title = tostring(data.Title or "")
+                local text  = tostring(data.Text or "")
+                local body    = (title .. " " .. text):lower()
+                if body:find("bloody", 1, true) or body:find("tokra", 1, true)
+                    or body:find("premium", 1, true) or body:find("loaded", 1, true)
+                    or body:find("crack", 1, true) then
+                    data.Title = CHAT_NAME
+                    data.Text  = LOAD_POPUP
+                end
+            end
+        end
+
+        if method == "PlayLocalSound" or method == "Play" then
+            local snd = args[1]
+            if snd and typeof(snd) == "Instance" and snd:IsA("Sound") then
+                if isClownAsset(snd.SoundId) then
+                    showBriefEliteSplash()
+                    return nil
+                end
+            end
+        end
+
+        return oldNamecall(self, ...)
+    end)
+end
+
+local function installAntiAFK()
+    local conn
+    conn = LocalPlayer.Idled:Connect(function()
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end)
+    return conn
+end
+
+local function installKeybinds()
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.F or input.KeyCode == Enum.KeyCode.RightShift then
+            toggleHubMenu()
+        end
+    end)
+end
+
+local function watchForHubLoad()
+    local function onDescendant(inst)
+        if not splashActive then return end
+        if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+            local ok, txt = pcall(function() return inst.Text end)
+            if ok and txt and (txt:lower():find("bloody", 1, true) or txt:lower():find("fling", 1, true) or txt == "Player") then
+                hubLoaded = true
+                task.delay(0.6, cleanupDevilArtifacts)
+            end
+        end
+        if inst:IsA("ScreenGui") and not OUR_OVERLAY_NAMES[inst.Name] then
+            registerHubGui(inst)
+            local n = inst.Name:lower()
+            if n:find("rayfield", 1, true) or n:find("bloody", 1, true) or registeredHubGuis[inst] then
+                hubLoaded = true
+                scheduleSweep(0.15)
+                task.delay(0.6, cleanupDevilArtifacts)
+            end
+        end
+    end
+
+    PlayerGui.DescendantAdded:Connect(onDescendant)
+    PlayerGui.ChildAdded:Connect(function(child)
+        if not child:IsA("ScreenGui") then return end
+        registerHubGui(child)
+        if registeredHubGuis[child] then
+            scheduleSweep(0.2)
+        elseif inventoryPurpleOn and isInventoryGui(child) then
+            registerInventoryGui(child)
+            scheduleInventoryRefresh(0.15)
+        end
+    end)
+    for _, d in ipairs(PlayerGui:GetDescendants()) do
+        onDescendant(d)
+    end
+
+    task.delay(2.5, function()
+        if splashActive then
+            cleanupDevilArtifacts()
+        end
+    end)
+end
+
+local function injectMiscToggle()
+    task.spawn(function()
+        for _ = 1, 60 do
+            if hubLoaded then break end
+            task.wait(0.5)
+        end
+        task.wait(1)
+
+        for _, inst in ipairs(PlayerGui:GetDescendants()) do
+            if (inst:IsA("TextLabel") or inst:IsA("TextButton")) and inst.Text == "Misc" then
+                local parent = inst.Parent
+                if parent then
+                    local section = parent.Parent
+                    if section then
+                        local row = Instance.new("TextButton")
+                        row.Name = "FE6_PurpleSkyToggle"
+                        row.Size = UDim2.new(1, -16, 0, 32)
+                        row.BackgroundColor3 = THEME.card
+                        row.BorderSizePixel = 0
+                        row.Font = Enum.Font.Gotham
+                        row.TextSize = 14
+                        row.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        row.Text = "  Purple Sky Shader"
+                        row.TextXAlignment = Enum.TextXAlignment.Left
+                        row.AutoButtonColor = true
+                        row.Parent = section
+
+                        local corner = Instance.new("UICorner")
+                        corner.CornerRadius = UDim.new(0, 6)
+                        corner.Parent = row
+
+                        row.MouseButton1Click:Connect(function()
+                            setPurpleSky(not purpleSkyOn)
+                        end)
+
+                        local invRow = Instance.new("TextButton")
+                        invRow.Name = "FE6_InventoryPurpleToggle"
+                        invRow.Size = UDim2.new(1, -16, 0, 32)
+                        invRow.Position = UDim2.new(0, 0, 0, 36)
+                        invRow.BackgroundColor3 = THEME.card
+                        invRow.BorderSizePixel = 0
+                        invRow.Font = Enum.Font.Gotham
+                        invRow.TextSize = 14
+                        invRow.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        invRow.Text = "  💜 Purple Inventory: OFF"
+                        invRow.TextXAlignment = Enum.TextXAlignment.Left
+                        invRow.AutoButtonColor = true
+                        invRow.Parent = section
+
+                        local invCorner = Instance.new("UICorner")
+                        invCorner.CornerRadius = UDim.new(0, 6)
+                        invCorner.Parent = invRow
+
+                        invRow.MouseButton1Click:Connect(function()
+                            inventoryPurpleOn = not inventoryPurpleOn
+                            invRow.Text = inventoryPurpleOn and "  💜 Purple Inventory: ON" or "  💜 Purple Inventory: OFF"
+                            if inventoryPurpleOn then
+                                scheduleInventoryRefresh(0.05)
+                            end
+                        end)
+                        break
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function httpGet(url)
+    local function finish(body)
+        if shouldPatchHttpUrl(url) then
+            return patchRayfieldSource(body)
+        end
+        return body
+    end
+    if syn and syn.request then
+        local ok, res = pcall(syn.request, {Url = url, Method = "GET"})
+        if ok and res and res.Body and #res.Body > 100 then
+            return finish(res.Body)
+        end
+    end
+    if http and http.request then
+        local ok, res = pcall(http.request, {Url = url, Method = "GET"})
+        if ok and res and res.Body and #res.Body > 100 then
+            return finish(res.Body)
+        end
+    end
+    local ok, body = pcall(function() return game:HttpGet(url) end)
+    if ok and type(body) == "string" and #body > 100 then
+        return finish(body)
+    end
+    error("Could not HttpGet — use MacSploit")
+end
+
+local function loadBloodyHub(attempt)
+    attempt = attempt or 1
+    local ok, err = pcall(function()
+        local src = httpGet(BLOODY_URL)
+        local fn, compileErr = loadstring(src)
+        if not fn then
+            error("Failed to compile Bloody: " .. tostring(compileErr))
+        end
+        fn()
+    end)
+    if not ok then
+        warn("[FE6 x DE11] Bloody load failed (attempt " .. attempt .. "):", err)
+        if attempt < 2 then
+            task.wait(1.5)
+            return loadBloodyHub(attempt + 1)
+        end
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = CHAT_NAME,
+                Text = "Load failed - re-execute script",
+                Duration = 6,
+            })
+        end)
+        cleanupDevilArtifacts()
+        ensureHubVisible()
+    else
+        hubLoaded = true
+        hijackRayfieldTheme()
+        for _, gui in ipairs(PlayerGui:GetChildren()) do registerHubGui(gui) end
+        sweepHubTheme()
+        ensureHubVisible()
+        runInitialHubPasses()
+        task.defer(cleanupDevilArtifacts)
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = CHAT_NAME,
+                Text = LOAD_POPUP,
+                Duration = 6,
+            })
+        end)
+        pcall(function()
+            StarterGui:SetCore("ChatMakeSystemMessage", {
+                Text = CHAT_NAME .. " loaded perfectly.",
+                Color = THEME.accent,
+                Font = Enum.Font.GothamBold,
+                FontSize = Enum.FontSize.Size18,
+            })
+        end)
+    end
+    return ok
+end
+
+local function main()
+    if game.PlaceId ~= FTAP_PLACE_ID then
+        local proceed = true
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = CHAT_NAME,
+                Text = "Not FTAP - loading anyway",
+                Duration = 3,
+            })
+        end)
+        if not proceed then return end
+    end
+
+    cleanupDevilArtifacts()
+    cleanupWorldEffects()
+    restoreDefaultMouse()
+    installRuntimeHooks()
+    installNotifyHook()
+    installAntiAFK()
+    installKeybinds()
+    createSkyOverlay()
+    createEliteSplash()
+    watchForHubLoad()
+    injectMiscToggle()
+
+    task.spawn(function()
+        task.wait(0.35)
+        loadBloodyHub()
+    end)
+
+    task.spawn(function()
+        task.wait(2.1)
+        cleanupDevilArtifacts()
+        ensureHubVisible()
+        scheduleSweep(0.1)
+        createSkyOverlay()
+        restoreDefaultMouse()
+    end)
+
+    if getgenv then
+        getgenv().FE6_Loaded = true
+    end
+end
+
+main()
